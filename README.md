@@ -5,7 +5,7 @@ This repository contains post-installation scripts for Debian 13 (Trixie) that a
 ## Usage Post-Installation Script
 
 ```bash
-bash -c "$(wget -qO- [https://raw.githubusercontent.com/hadzicni/debian13-postinstall-scripts/main/debian13-postinstall.sh)"
+bash -c "$(wget -qO- https://raw.githubusercontent.com/hadzicni/debian13-postinstall-scripts/main/debian13-postinstall.sh)"
 ```
 
 ## Usage Template Post-Installation Script
