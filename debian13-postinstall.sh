@@ -232,7 +232,6 @@ Name=${INTERFACE}
 
 [Network]
 Address=${IP}
-DNS=${DNS_SERVER}
 DHCP=no
 
 [Route]
@@ -261,7 +260,6 @@ EOF
 fi
 
 section "Applying network"
-systemctl enable systemd-networkd-wait-online.service >/dev/null 2>&1 || true
 
 networkctl reload
 systemctl restart systemd-networkd
@@ -270,15 +268,15 @@ systemctl restart systemd-resolved
 resolvectl flush-caches || true
 
 for i in {1..50}; do
-  [ -e /run/systemd/resolve/stub-resolv.conf ] && break
+  [ -e /run/systemd/resolve/resolv.conf ] && break
   sleep 0.2
 done
 
-[ -e /run/systemd/resolve/stub-resolv.conf ] \
-  || { error "systemd-resolved stub not created"; exit 1; }
+[ -e /run/systemd/resolve/resolv.conf ] \
+  || { error "systemd-resolved resolv.conf not created"; exit 1; }
 
 rm -f /etc/resolv.conf
-ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
 
 ok "network applied"
 
