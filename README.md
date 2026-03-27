@@ -1,9 +1,15 @@
-# Debian 13 Post-Installation Script
+# Debian 13 Post-Installation Scripts
 
-This repository contains a post-installation script for Debian 13 (Trixie) that automates common setup tasks after a fresh installation.
+This repository contains post-installation scripts for Debian 13 (Trixie) that automates common setup tasks after a fresh installation.
 
-## Usage
+## Usage Post-Installation Script
 
 ```bash
 bash -c "$(wget -qO- https://raw.githubusercontent.com/hadzicni/debian13-postinstall-script/refs/heads/main/debian13-postinstall.sh)"
+```
+
+## Usage Template Post-Installation Script
+
+```bash
+bash -c "$(wget -qO- https://raw.githubusercontent.com/hadzicni/debian13-postinstall-script/refs/heads/main/debian13-postinstalltemplate.sh)"
 ```
