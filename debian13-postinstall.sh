@@ -94,12 +94,19 @@ read -e -p "Enter username to add to sudo group: " -i "$DEFAULT_USER" USERNAME
 ip -br link
 read -e -p "Enter network interface name: " -i "$DEFAULT_IFACE" INTERFACE
 
-ip link show "$INTERFACE" >/dev/null 2>&1 || { error "Interface not found"; exit 1; }
+read -e -p "Use DHCP instead of static IP? (yes/no): " -i "yes" USE_DHCP
+case "$USE_DHCP" in
+  yes|no) ;;
+  *) error "Please enter yes or no"; exit 1 ;;
+esac
 
-read -e -p "Enter static IP with CIDR: " -i "$DEFAULT_IP" IP
-read -e -p "Enter gateway IP: " -i "$DEFAULT_GW" GATEWAY
-read -e -p "Enter primary DNS server IP: " -i "$DEFAULT_DNS" DNS_SERVER
-read -e -p "Enter fallback DNS server IP: " -i "$DEFAULT_FALLBACK" FALLBACK_DNS
+ip link show "$INTERFACE" >/dev/null 2>&1 || { error "Interface not found"; exit 1; }
+if [ "$USE_DHCP" != "yes" ]; then
+  read -e -p "Enter static IP with CIDR: " -i "$DEFAULT_IP" IP
+  read -e -p "Enter gateway IP: " -i "$DEFAULT_GW" GATEWAY
+  read -e -p "Enter primary DNS server IP: " -i "$DEFAULT_DNS" DNS_SERVER
+  read -e -p "Enter fallback DNS server IP: " -i "$DEFAULT_FALLBACK" FALLBACK_DNS
+fi
 
 valid_ipv4() {
   local ip=$1
@@ -126,20 +133,27 @@ valid_cidr_ipv4() {
   [[ $mask =~ ^([0-9]|[1-2][0-9]|3[0-2])$ ]]
 }
 
-valid_cidr_ipv4 "$IP" || { error "Invalid static IP/CIDR"; exit 1; }
-valid_ipv4 "$GATEWAY" || { error "Invalid gateway IP"; exit 1; }
-valid_ipv4 "$DNS_SERVER" || { error "Invalid primary DNS IP"; exit 1; }
-valid_ipv4 "$FALLBACK_DNS" || { error "Invalid fallback DNS IP"; exit 1; }
+if [ "$USE_DHCP" != "yes" ]; then
+  valid_cidr_ipv4 "$IP" || { error "Invalid static IP/CIDR"; exit 1; }
+  valid_ipv4 "$GATEWAY" || { error "Invalid gateway IP"; exit 1; }
+  valid_ipv4 "$DNS_SERVER" || { error "Invalid primary DNS IP"; exit 1; }
+  valid_ipv4 "$FALLBACK_DNS" || { error "Invalid fallback DNS IP"; exit 1; }
+fi
 
 echo
 echo "Configuration summary:"
 echo "User: $USERNAME"
 echo "Interface: $INTERFACE"
-echo "IP: $IP"
-echo "Gateway: $GATEWAY"
-echo "Primary DNS: $DNS_SERVER"
-echo "Fallback DNS: $FALLBACK_DNS"
-echo
+
+if [ "$USE_DHCP" = "yes" ]; then
+  echo "Mode: DHCP"
+else
+  echo "Mode: Static"
+  echo "IP: $IP"
+  echo "Gateway: $GATEWAY"
+  echo "Primary DNS: $DNS_SERVER"
+  echo "Fallback DNS: $FALLBACK_DNS"
+fi
 
 read -e -p "Proceed? (yes/no): " -i "yes" CONFIRM
 [ "$CONFIRM" != "yes" ] && { warn "Aborted."; exit 1; }
@@ -211,6 +225,15 @@ mkdir -p /etc/systemd/network
 [ -f /etc/systemd/network/10-${INTERFACE}.network ] \
   && warn "Existing network configuration will be replaced"
 
+if [ "$USE_DHCP" = "yes" ]; then
+cat > /etc/systemd/network/10-${INTERFACE}.network <<EOF
+[Match]
+Name=${INTERFACE}
+
+[Network]
+DHCP=yes
+EOF
+else
 cat > /etc/systemd/network/10-${INTERFACE}.network <<EOF
 [Match]
 Name=${INTERFACE}
@@ -224,8 +247,10 @@ DHCP=no
 Destination=0.0.0.0/0
 Gateway=${GATEWAY}
 EOF
+fi
 
 section "Configuring systemd-resolved (Fallback DNS)"
+if [ "$USE_DHCP" != "yes" ]; then
 cat > /etc/systemd/resolved.conf <<EOF
 [Resolve]
 DNS=${DNS_SERVER}
@@ -234,6 +259,14 @@ DNSSEC=no
 DNSOverTLS=no
 Cache=yes
 EOF
+else
+cat > /etc/systemd/resolved.conf <<EOF
+[Resolve]
+DNSSEC=no
+DNSOverTLS=no
+Cache=yes
+EOF
+fi
 
 section "Applying network"
 systemctl enable systemd-networkd-wait-online.service >/dev/null 2>&1 || true
@@ -262,7 +295,17 @@ section "Testing network connectivity"
 ip addr show "$INTERFACE"
 ip route
 
-ping -c 2 "$GATEWAY" >/dev/null 2>&1 && ok "Gateway reachable" || warn "Gateway unreachable"
+if [ "$USE_DHCP" != "yes" ]; then
+  ping -c 2 "$GATEWAY" >/dev/null 2>&1 && ok "Gateway reachable" || warn "Gateway unreachable"
+else
+  DHCP_GW=$(ip route | awk '/default/ {print $3; exit}')
+  if [ -n "${DHCP_GW:-}" ]; then
+    ping -c 2 "$DHCP_GW" >/dev/null 2>&1 && ok "Gateway reachable" || warn "Gateway unreachable"
+  else
+    warn "No default gateway detected"
+  fi
+fi
+
 ping -c 2 8.8.8.8 >/dev/null 2>&1 && ok "Internet reachable" || warn "Internet unreachable"
 resolvectl query deb.debian.org >/dev/null 2>&1 && ok "DNS working" || warn "DNS resolution failed"
 
