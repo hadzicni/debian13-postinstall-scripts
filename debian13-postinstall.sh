@@ -84,6 +84,11 @@ DEFAULT_FALLBACK="8.8.8.8"
 [ "$DEFAULT_USER" = "user" ] && warn "No regular user detected"
 [ -t 0 ] || { error "Script must be run interactively"; exit 1; }
 
+CURRENT_HOSTNAME=$(hostname)
+read -e -p "Enter hostname: " -i "$CURRENT_HOSTNAME" NEW_HOSTNAME
+hostnamectl set-hostname "$NEW_HOSTNAME"
+ok "Hostname set to $NEW_HOSTNAME"
+
 # ---- Prompts with prefilled values ----
 read -e -p "Enter username to add to sudo group: " -i "$DEFAULT_USER" USERNAME
 ip -br link
@@ -95,6 +100,36 @@ read -e -p "Enter static IP with CIDR: " -i "$DEFAULT_IP" IP
 read -e -p "Enter gateway IP: " -i "$DEFAULT_GW" GATEWAY
 read -e -p "Enter primary DNS server IP: " -i "$DEFAULT_DNS" DNS_SERVER
 read -e -p "Enter fallback DNS server IP: " -i "$DEFAULT_FALLBACK" FALLBACK_DNS
+
+valid_ipv4() {
+  local ip=$1
+  local IFS=.
+  local -a octets
+
+  [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  read -r -a octets <<< "$ip"
+
+  for octet in "${octets[@]}"; do
+    (( octet >= 0 && octet <= 255 )) || return 1
+  done
+}
+
+valid_cidr_ipv4() {
+  local cidr=$1
+  local ip mask
+
+  [[ $cidr == */* ]] || return 1
+  ip=${cidr%/*}
+  mask=${cidr#*/}
+
+  valid_ipv4 "$ip" || return 1
+  [[ $mask =~ ^([0-9]|[1-2][0-9]|3[0-2])$ ]]
+}
+
+valid_cidr_ipv4 "$IP" || { error "Invalid static IP/CIDR"; exit 1; }
+valid_ipv4 "$GATEWAY" || { error "Invalid gateway IP"; exit 1; }
+valid_ipv4 "$DNS_SERVER" || { error "Invalid primary DNS IP"; exit 1; }
+valid_ipv4 "$FALLBACK_DNS" || { error "Invalid fallback DNS IP"; exit 1; }
 
 echo
 echo "Configuration summary:"
@@ -112,7 +147,7 @@ read -e -p "Proceed? (yes/no): " -i "yes" CONFIRM
 echo
 section "Updating system"
 apt update >/dev/null 2>&1 || { error "APT update failed"; exit 1; }
-DEBIAN_FRONTEND=noninteractive apt full-upgrade -y >/dev/null || { error "Upgrade failed"; exit 1; }
+DEBIAN_FRONTEND=noninteractive apt upgrade -y >/dev/null || { error "Upgrade failed"; exit 1; }
 ok "System upgraded"
 
 section "Installing required packages"
@@ -184,7 +219,6 @@ Name=${INTERFACE}
 Address=${IP}
 DNS=${DNS_SERVER}
 DHCP=no
-IPv6AcceptRA=no
 
 [Route]
 Destination=0.0.0.0/0
@@ -202,6 +236,7 @@ Cache=yes
 EOF
 
 section "Applying network"
+systemctl enable systemd-networkd-wait-online.service >/dev/null 2>&1 || true
 
 networkctl reload
 systemctl restart systemd-networkd
@@ -222,67 +257,17 @@ ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 ok "network applied"
 
+section "Testing network connectivity"
+
+ip addr show "$INTERFACE"
+ip route
+
+ping -c 2 "$GATEWAY" >/dev/null 2>&1 && ok "Gateway reachable" || warn "Gateway unreachable"
+ping -c 2 8.8.8.8 >/dev/null 2>&1 && ok "Internet reachable" || warn "Internet unreachable"
+resolvectl query deb.debian.org >/dev/null 2>&1 && ok "DNS working" || warn "DNS resolution failed"
+
 echo
 section "Network Setup Complete"
-echo
 
-# ============================================================
-# SECTION 2 — Fastfetch Installation
-# ============================================================
-
-FF_VERSION="2.58.0"
-BASE_URL="https://github.com/fastfetch-cli/fastfetch/releases/download/${FF_VERSION}"
-
-section "Installing fastfetch ${FF_VERSION}"
-
-# Dependencies
-apt update >/dev/null 2>&1 || { error "APT update failed"; exit 1; }
-DEBIAN_FRONTEND=noninteractive apt install -y curl ca-certificates >/dev/null 2>&1 || { error "Dependency install failed"; exit 1; }
-ok "APT repositories updated"
-
-# Architecture mapping
-arch=$(dpkg --print-architecture)
-
-case "$arch" in
-  amd64) pkg="fastfetch-linux-amd64.deb" ;;
-  arm64) pkg="fastfetch-linux-aarch64.deb" ;;
-  *)
-    echo "Unsupported architecture: $arch"
-    exit 1
-  ;;
-esac
-
-url="${BASE_URL}/${pkg}"
-tmpdeb="/tmp/${pkg}"
-
-echo "Downloading: $url"
-curl -L --fail --retry 3 --connect-timeout 10 "$url" -o "$tmpdeb" \
-  || { error "Download failed"; exit 1; }
-
-# Install
-DEBIAN_FRONTEND=noninteractive apt install -y "$tmpdeb" >/dev/null 2>&1 || { error "Fastfetch install failed"; exit 1; }
-ok "Fastfetch installed"
-rm -f "$tmpdeb"
-
-# Show on login
-cat > /etc/profile.d/fastfetch.sh <<'EOF'
-case $- in
-  *i*) ;;
-  *) return;;
-esac
-
-[ -t 1 ] || return
-[ "$EUID" -ge 1000 ] || return
-
-command -v fastfetch >/dev/null && fastfetch 2>/dev/null || true
-EOF
-
-chmod +x /etc/profile.d/fastfetch.sh
-
-echo
-ok "Fastfetch ${FF_VERSION} installed"
-info "Reconnect SSH to see it"
-
-echo
 section "All Tasks Completed"
 warn "Reboot recommended"
