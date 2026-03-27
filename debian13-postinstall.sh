@@ -72,7 +72,6 @@ section "Debian 13 Post Install Network Setup"
 echo
 
 # ---- Default auto-detection ----
-DEFAULT_USER=$(logname 2>/dev/null || ls /home 2>/dev/null | head -n1 || echo "user")
 DEFAULT_IFACE=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}')
 DEFAULT_IFACE=${DEFAULT_IFACE:-$(ip -o link show | awk -F': ' '{print $2}' | grep -E '^(en|eth)' | head -n1)}
 DEFAULT_IFACE=${DEFAULT_IFACE:-eth0}
@@ -81,7 +80,6 @@ DEFAULT_GW="192.168.88.1"
 DEFAULT_DNS="192.168.88.1"
 DEFAULT_FALLBACK="8.8.8.8"
 
-[ "$DEFAULT_USER" = "user" ] && warn "No regular user detected"
 [ -t 0 ] || { error "Script must be run interactively"; exit 1; }
 
 CURRENT_HOSTNAME=$(hostname)
@@ -90,7 +88,6 @@ hostnamectl set-hostname "$NEW_HOSTNAME"
 ok "Hostname set to $NEW_HOSTNAME"
 
 # ---- Prompts with prefilled values ----
-read -e -p "Enter username to add to sudo group: " -i "$DEFAULT_USER" USERNAME
 ip -br link
 read -e -p "Enter network interface name: " -i "$DEFAULT_IFACE" INTERFACE
 
@@ -142,7 +139,6 @@ fi
 
 echo
 echo "Configuration summary:"
-echo "User: $USERNAME"
 echo "Interface: $INTERFACE"
 
 if [ "$USE_DHCP" = "yes" ]; then
@@ -184,10 +180,6 @@ ok "journald limited"
 
 systemctl enable --now qemu-guest-agent
 ok "QEMU Guest Agent enabled"
-
-section "Adding user to sudo group"
-id "$USERNAME" >/dev/null 2>&1 || { error "User does not exist"; exit 1; }
-usermod -aG sudo "$USERNAME"
 
 section "Removing old network stacks"
 DEBIAN_FRONTEND=noninteractive apt purge -y network-manager netplan.io ifupdown >/dev/null 2>&1 || true
