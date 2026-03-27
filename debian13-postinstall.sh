@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 
 # ============================================================
 # Root check (shared)
@@ -32,6 +32,8 @@ ok()      { printf "${C_GREEN}✔${C_RESET} %s\n" "$*"; }
 warn()    { printf "${C_YELLOW}!${C_RESET} %s\n" "$*"; }
 error()   { printf "${C_RED}✖ %s${C_RESET}\n" "$*"; }
 section() { printf "\n${C_BOLD}${C_MAGENTA}=== %s ===${C_RESET}\n\n" "$*"; }
+
+trap 'error "Script failed on line $LINENO"' ERR
 
 # ============================================================
 # Banner
@@ -74,7 +76,7 @@ DEFAULT_USER=$(logname 2>/dev/null || ls /home 2>/dev/null | head -n1 || echo "u
 DEFAULT_IFACE=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}')
 DEFAULT_IFACE=${DEFAULT_IFACE:-$(ip -o link show | awk -F': ' '{print $2}' | grep -E '^(en|eth)' | head -n1)}
 DEFAULT_IFACE=${DEFAULT_IFACE:-eth0}
-DEFAULT_IP="192.168.88.xxx/24"
+DEFAULT_IP="192.168.88.20/24"
 DEFAULT_GW="192.168.88.1"
 DEFAULT_DNS="192.168.88.1"
 DEFAULT_FALLBACK="8.8.8.8"
@@ -84,6 +86,7 @@ DEFAULT_FALLBACK="8.8.8.8"
 
 # ---- Prompts with prefilled values ----
 read -e -p "Enter username to add to sudo group: " -i "$DEFAULT_USER" USERNAME
+ip -br link
 read -e -p "Enter network interface name: " -i "$DEFAULT_IFACE" INTERFACE
 
 ip link show "$INTERFACE" >/dev/null 2>&1 || { error "Interface not found"; exit 1; }
