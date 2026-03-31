@@ -157,7 +157,7 @@ read -e -p "Proceed? (yes/no): " -i "yes" CONFIRM
 echo
 section "Updating system"
 apt update >/dev/null 2>&1 || { error "APT update failed"; exit 1; }
-DEBIAN_FRONTEND=noninteractive apt upgrade -y >/dev/null || { error "Upgrade failed"; exit 1; }
+DEBIAN_FRONTEND=noninteractive apt full-upgrade -y >/dev/null || { error "Upgrade failed"; exit 1; }
 ok "System upgraded"
 
 section "Installing required packages"
@@ -235,7 +235,6 @@ Address=${IP}
 Gateway=${GATEWAY}
 DNS=${DNS_SERVER}
 DHCP=no
-
 EOF
 fi
 
@@ -275,7 +274,7 @@ done
   || { error "systemd-resolved resolv.conf not created"; exit 1; }
 
 rm -f /etc/resolv.conf
-ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 ok "network applied"
 
@@ -304,7 +303,7 @@ section "Network Setup Complete"
 section "Installing Node Exporter"
 apt install -y prometheus-node-exporter >/dev/null 2>&1
 systemctl enable --now prometheus-node-exporter
-curl -s http://localhost:9100/metrics >/dev/null \
+curl -sf http://localhost:9100/metrics >/dev/null \
   && ok "Node Exporter responding" \
   || warn "Node Exporter not responding"
 ok "Node Exporter installed"
