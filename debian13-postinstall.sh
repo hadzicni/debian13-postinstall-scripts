@@ -161,7 +161,7 @@ DEBIAN_FRONTEND=noninteractive apt upgrade -y >/dev/null || { error "Upgrade fai
 ok "System upgraded"
 
 section "Installing required packages"
-DEBIAN_FRONTEND=noninteractive apt install -y qemu-guest-agent sudo systemd-resolved systemd-timesyncd \
+DEBIAN_FRONTEND=noninteractive apt install -y qemu-guest-agent sudo curl systemd-resolved systemd-timesyncd \
   >/dev/null 2>&1 || { error "Package installation failed"; exit 1; }
 ok "Base packages installed"
 section "Limiting journal size"
