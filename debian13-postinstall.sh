@@ -302,5 +302,13 @@ resolvectl query deb.debian.org >/dev/null 2>&1 && ok "DNS working" || warn "DNS
 echo
 section "Network Setup Complete"
 
+section "Installing Node Exporter"
+apt install -y prometheus-node-exporter >/dev/null 2>&1
+systemctl enable --now prometheus-node-exporter
+curl -s http://localhost:9100/metrics >/dev/null \
+  && ok "Node Exporter responding" \
+  || warn "Node Exporter not responding"
+ok "Node Exporter installed"
+
 section "All Tasks Completed"
 warn "Reboot recommended"
