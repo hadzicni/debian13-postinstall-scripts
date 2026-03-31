@@ -11,6 +11,7 @@ bash -c "$(wget -qO- https://raw.githubusercontent.com/hadzicni/debian13-postins
 ## After VM Clone
 ```bash
 sudo ssh-keygen -A
+sudo systemctl restart ssh
 ```
 
 ## Usage Template Post-Installation Script
