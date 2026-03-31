@@ -232,11 +232,10 @@ Name=${INTERFACE}
 
 [Network]
 Address=${IP}
+Gateway=${GATEWAY}
+DNS=${DNS_SERVER}
 DHCP=no
 
-[Route]
-Destination=0.0.0.0/0
-Gateway=${GATEWAY}
 EOF
 fi
 
