@@ -8,6 +8,11 @@ This repository contains post-installation scripts for Debian 13 (Trixie) that a
 bash -c "$(wget -qO- https://raw.githubusercontent.com/hadzicni/debian13-postinstall-scripts/main/debian13-postinstall.sh)"
 ```
 
+## After VM Clone
+```bash
+sudo ssh-keygen -A
+```
+
 ## Usage Template Post-Installation Script
 
 ```bash
